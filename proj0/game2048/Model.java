@@ -5,7 +5,7 @@ import java.util.Observable;
 
 
 /** The state of a game of 2048.
- *  @author TODO: YOUR NAME HERE
+ *  @author TODO: agility6
  */
 public class Model extends Observable {
     /** Current contents of the board. */
@@ -114,11 +114,119 @@ public class Model extends Observable {
         // for the tilt to the Side SIDE. If the board changed, set the
         // changed local variable to true.
 
+        /**
+         * move函数(c, r, t) t这个元素移动到c列r行上
+         * 实现向上移动
+         *  规则说明：如果当前元素到顶行都为空则直接上移move(c, 3, t)
+         *      如果当前元素到顶行有元素且元素两个元素相等则向上移动一位
+         *  在遍历的时候是按照每一列进行的，所以可以维护每一列的数据进行判断是否上移或者不上移
+         *  从顶行开始遍历
+         *
+         *  思路：
+         *      需要一个辅助的数组记录当前列的元素
+         *      记录合并的次数例如[2,2,0,4] 每一列只能有一次合并操作[4,0,0,4]
+         */
+
+        board.setViewingPerspective(side);
+        int[] backup = new int[4];
+        for (int c = board.size() - 1; c >= 0; c--) {
+            // 记录当前列的元素
+            int[] x = new int[4];
+            // 记录合并的次数
+            int len = 0;
+
+            for (int i = 3; i >= 0 ; i--) {
+                if (this.tile(c, i) != null) backup[i] = this.tile(c, i).value();
+            }
+
+            // 将顶行数据存入到辅助数组中
+            if (board.tile(c, 3) != null) x[3] = board.tile(c, 3).value();
+            for (int r = board.size() - 2 ; r >= 0; r--) {
+                if (board.tile(c, r) != null) {
+                    // 取出当前的值
+                    int currentValue = board.tile(c, r).value();
+                    Tile t = board.tile(c, r);
+                    // 添加到辅助数组中
+                    x[r] = currentValue;
+                    // 判断移动的位置
+                    int moveStep = getMoveStep(x, c, r, currentValue, len, backup);
+                    /**
+                     * 移动到某个行的位置上如果不为null说明元素进行结合
+                     * 且移动的位置不能不变
+                     * 例如：[4,2,2,0]
+                     * 当对下标为1的元素进行操作，显然它需要执行move(c, 2, t)
+                     * 需要特判moveStep不能与当前位置一样
+                     */
+                    if (board.tile(c, moveStep) != null && moveStep != r) {
+                        score += 2 * board.tile(c, moveStep).value();
+                        len++;
+                    }
+                    board.move(c, moveStep, t);
+                    // 更新辅助数组
+                    update(x, c);
+                    changed = true;
+                }
+            }
+        }
+        board.setViewingPerspective(Side.NORTH);
         checkGameOver();
         if (changed) {
             setChanged();
         }
         return changed;
+    }
+
+    /**
+     * 进行move method之后，如果当前位置不为null说明进行移动
+     * @param x
+     * @param col
+     */
+    private void update(int[] x, int col) {
+
+        for (int r = 0; r < board.size(); r++) {
+            if (board.tile(col, r) != null) {
+                x[r] = board.tile(col, r).value();
+            } else {
+                x[r] = 0;
+            }
+        }
+    }
+
+    /**
+     *
+     * @param x
+     * @param col
+     * @param row
+     * @param currentValue
+     * @return
+     */
+    private int getMoveStep(int[] x, int col, int row, int currentValue, int len, int[] backup) {
+
+        // 记录移动到多少行
+        int res = row;
+
+        // 判断是否遍历到最后一行
+        if (row == 0) {
+            // 计算原始数组中的有效元素
+            int backupIndex = 0;
+
+            for (int i = 0; i < backup.length; i++) {
+                if (backup[i] != 0) backupIndex++;
+            }
+
+            // 如果有效元素等于4则说明只需要检查currentValue和上一个元素是否相等,且和边界值相等
+            if (row == 0 && backupIndex == 4 && currentValue == x[x.length - 1 - len]) {
+                if (backup[1] != currentValue) res = row - 1;
+            }
+        }
+
+        for (int i = row; i < x.length - 1 - len; res++, i++) {
+            // 当前位置上的元素不等于上面的元素且上一个元素不等于零则不动
+            if (currentValue != x[i + 1] && x[i + 1] != 0) return res;
+            // 当前元素等于上一个元素 当起行+1
+            else if (currentValue == x[i + 1]) return res + 1;
+        }
+        return res;
     }
 
     /** Checks if the game is over and sets the gameOver variable
@@ -138,6 +246,21 @@ public class Model extends Observable {
      * */
     public static boolean emptySpaceExists(Board b) {
         // TODO: Fill in this function.
+        /**
+         * 判断Board是否是空
+         * 使用tile函数和size函数
+         * 使用tile传入col row得到当前位置上的值
+         * 如果当前的值是空的话返回null
+         */
+
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+                if (b.tile(j, i) == null) {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 
@@ -148,6 +271,18 @@ public class Model extends Observable {
      */
     public static boolean maxTileExists(Board b) {
         // TODO: Fill in this function.
+
+        /**
+         *  如果当前的值等于2024最大值则返回true
+         *  使用tile函数获取当前的位置的值
+         *  当前位置不能为null，满足则获取value()判断
+         */
+
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+                if (b.tile(j, i) != null && b.tile(j, i).value() == MAX_PIECE) return true;
+            }
+        }
         return false;
     }
 
@@ -159,6 +294,47 @@ public class Model extends Observable {
      */
     public static boolean atLeastOneMoveExists(Board b) {
         // TODO: Fill in this function.
+
+        /**
+         *  当board存在空格则一定可以移动
+         *  当board不存空格
+         *      - 只需要判断当前位置的 左边和下面的值是否相同
+         *      - 边界特判
+         */
+
+        if (emptySpaceExists(b)) return true;
+
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+
+                int currentValue = b.tile(j, i).value();
+
+                // 循环到最后的元素直接退出
+                if (i == b.size() - 1 && j == b.size() - 1) break;
+
+                // 遍历到最后一列，只需要判断下面的元素是否相等
+                if (j == b.size() - 1) {
+                    if (b.tile(j, i + 1).value() == currentValue) {
+                        return true;
+                    }
+                    continue;
+                }
+
+                // 遍历到最后一行，只需要判断左边的元素是否相等
+                if (i == b.size() - 1) {
+                    if (b.tile(j + 1, i).value() == currentValue) {
+                        return true;
+                    }
+                    continue;
+                }
+
+                // 判断左边和下面的元素是否相等
+                if ((b.tile(j, i + 1).value() == currentValue) ||
+                        (b.tile(j + 1, i).value() == currentValue)
+                ) return true;
+            }
+        }
+
         return false;
     }
 
